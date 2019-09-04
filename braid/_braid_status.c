@@ -42,6 +42,9 @@
 #define ACCESSOR_FUNCTION_GET2(stype,param,vtype1,vtype2) \
    braid_Int braid_##stype##StatusGet##param(braid_##stype##Status s, braid_##vtype1 *v1, braid_##vtype2 *v2) \
    {return braid_StatusGet##param((braid_Status)s, v1, v2);}
+#define ACCESSOR_FUNCTION_GET3(stype,param,vtype1,vtype2,vtype3) \
+   braid_Int braid_##stype##StatusGet##param(braid_##stype##Status s, braid_##vtype1 *v1, braid_##vtype2 *v2, braid_##vtype3 *v3) \
+   {return braid_StatusGet##param((braid_Status)s, v1, v2, v3);}
 #define ACCESSOR_FUNCTION_GET4(stype,param,vtype1,vtype2,vtype3,vtype4) \
    braid_Int braid_##stype##StatusGet##param(braid_##stype##Status s, braid_##vtype1 *v1, braid_##vtype2 *v2, braid_##vtype3 *v3, braid_##vtype4 *v4) \
    {return braid_StatusGet##param((braid_Status)s, v1, v2, v3, v4);}
@@ -51,7 +54,6 @@
 #define ACCESSOR_FUNCTION_SET1(stype,param,vtype1) \
    braid_Int braid_##stype##StatusSet##param(braid_##stype##Status s, braid_##vtype1 v1) \
    {return braid_StatusSet##param((braid_Status)s, v1);}
-
 
 braid_Int
 _braid_StatusDestroy(braid_Status status)
@@ -145,6 +147,61 @@ braid_StatusGetDone(braid_Status status,
                     )
 {
    *done_ptr = _braid_StatusElt(status, done);
+   return _braid_error_flag;
+}
+
+braid_Int
+braid_StatusGetTUpperLower(braid_Status status,
+                           braid_Real  *t_upper,
+                           braid_Real  *t_lower,
+                           braid_Int   *level_ptr
+                           )
+{
+   _braid_Grid **grids = _braid_StatusElt(status, grids);
+   braid_Int iupper, ilower;
+   braid_Real *ta;
+   iupper = _braid_GridElt(grids[*level_ptr], iupper);
+   ilower = _braid_GridElt(grids[*level_ptr], ilower);
+   ta = _braid_GridElt(grids[*level_ptr], ta);
+
+   *t_upper = ta[iupper-ilower];
+   *t_lower = ta[0];
+   return _braid_error_flag;
+}
+
+braid_Int
+braid_StatusGetTIUL(braid_Status status,
+                    braid_Int   *iloc_upper,
+                    braid_Int   *iloc_lower,
+                    braid_Int   *level_ptr
+                    )
+{
+   _braid_Grid **grids = _braid_StatusElt(status, grids);
+
+   *iloc_upper = _braid_GridElt(grids[*level_ptr], iupper);
+   *iloc_lower = _braid_GridElt(grids[*level_ptr], ilower);
+   return _braid_error_flag;
+}
+
+braid_Int
+braid_StatusGetTimeValues(braid_Status status,
+                          braid_Real **tvalues_ptr,
+                          braid_Int   *i_upper,
+                          braid_Int   *i_lower,
+                          braid_Int   *level_ptr
+                          )
+{
+   /* We assume user has allocated enough space in tvalues_ptr */
+   braid_Int iloc_lower, cpy_lower, cpy_size;
+   braid_Real *ta;
+   _braid_Grid **grids = _braid_StatusElt(status, grids);
+   iloc_lower = _braid_GridElt(grids[*level_ptr], ilower);
+   ta = _braid_GridElt(grids[*level_ptr], ta);
+
+   cpy_lower = (*i_lower)-iloc_lower;
+   cpy_size = (*i_upper)-(*i_lower)+1;
+
+   memcpy(*tvalues_ptr+cpy_lower, ta+cpy_lower, cpy_size*sizeof(braid_Real));
    return _braid_error_flag;
 }
 
@@ -383,6 +440,38 @@ ACCESSOR_FUNCTION_GET1(Access, WrapperTest,     Int)
 ACCESSOR_FUNCTION_GET1(Access, CallingFunction, Int)
 
 /*--------------------------------------------------------------------------
+ * SyncStatus Routines
+ *--------------------------------------------------------------------------*/
+
+braid_Int
+_braid_SyncStatusInit(braid_Int            iter,
+                      braid_Int            level,
+                      braid_Int            nrefine,
+                      braid_Int            gupper,
+                      braid_Int            done,
+                      braid_Int            calling_function,
+                      braid_SyncStatus     status)
+{
+   _braid_StatusElt(status, level)        = level;
+   _braid_StatusElt(status, nrefine)      = nrefine;
+   _braid_StatusElt(status, gupper)       = gupper;
+   _braid_StatusElt(status, done)         = done;
+   _braid_StatusElt(status, niter)        = iter;
+   _braid_StatusElt(status, calling_function) = calling_function;
+   return _braid_error_flag;
+}
+ACCESSOR_FUNCTION_GET3(Sync, TUpperLower,      Real, Real, Int)
+ACCESSOR_FUNCTION_GET3(Sync, TIUL,             Int, Int, Int)
+ACCESSOR_FUNCTION_GET4(Sync, TimeValues,       Real*, Int, Int, Int)
+ACCESSOR_FUNCTION_GET1(Sync, Iter,             Int)
+ACCESSOR_FUNCTION_GET1(Sync, Level,            Int)
+ACCESSOR_FUNCTION_GET1(Sync, NLevels,          Int)
+ACCESSOR_FUNCTION_GET1(Sync, NRefine,          Int)
+ACCESSOR_FUNCTION_GET1(Sync, NTPoints,         Int)
+ACCESSOR_FUNCTION_GET1(Sync, Done,             Int)
+ACCESSOR_FUNCTION_GET1(Sync, CallingFunction,  Int)
+
+/*--------------------------------------------------------------------------
  * CoarsenRefStatus Routines
  *--------------------------------------------------------------------------*/
 
@@ -438,16 +527,16 @@ _braid_StepStatusInit(braid_Real       tstart,
                       braid_Int        gupper,
                       braid_StepStatus status)
 {
-   _braid_StatusElt(status, t)         = tstart;
-   _braid_StatusElt(status, tnext)     = tstop;
-   _braid_StatusElt(status, idx)       = idx;
-   _braid_StatusElt(status, tol)       = tol;
-   _braid_StatusElt(status, niter)     = iter;
-   _braid_StatusElt(status, level)     = level;
-   _braid_StatusElt(status, nrefine)   = nrefine;
-   _braid_StatusElt(status, gupper)    = gupper;
-   _braid_StatusElt(status, rfactor)   = 1;
-   _braid_StatusElt(status, r_space)   = 0;
+   _braid_StatusElt(status, t)          = tstart;
+   _braid_StatusElt(status, tnext)      = tstop;
+   _braid_StatusElt(status, idx)        = idx;
+   _braid_StatusElt(status, tol)        = tol;
+   _braid_StatusElt(status, niter)      = iter;
+   _braid_StatusElt(status, level)      = level;
+   _braid_StatusElt(status, nrefine)    = nrefine;
+   _braid_StatusElt(status, gupper)     = gupper;
+   _braid_StatusElt(status, rfactor)    = 1;
+   _braid_StatusElt(status, r_space)    = 0;
 
    return _braid_error_flag;
 }
@@ -459,6 +548,7 @@ ACCESSOR_FUNCTION_GET1(Step, NLevels,       Int)
 ACCESSOR_FUNCTION_GET1(Step, NRefine,       Int)
 ACCESSOR_FUNCTION_GET1(Step, NTPoints,      Int)
 ACCESSOR_FUNCTION_GET1(Step, Tstop,         Real)
+ACCESSOR_FUNCTION_GET3(Step, TUpperLower,   Real, Real, Int)
 ACCESSOR_FUNCTION_GET2(Step, TstartTstop,   Real, Real)
 ACCESSOR_FUNCTION_GET1(Step, Tol,           Real)
 ACCESSOR_FUNCTION_GET2(Step, RNorms,        Int,  Real)

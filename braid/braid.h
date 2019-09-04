@@ -216,6 +216,17 @@ typedef braid_Int
                      );
 
 /**
+ * Gives user access to XBraid and to the user's app at various points (primarily
+ * once per iteration inside FRefine and outside in the main cycle loop).  This
+ * function is called once per-processor (not for every state vector stored on the
+ * processor, like access).
+ **/
+typedef braid_Int
+(*braid_PtFcnSync)(braid_App         app,              /**< user-defined _braid_App structure */
+                   braid_SyncStatus  status            /**< can be querried for info like the current XBraid Iteration */
+                   );
+
+/**
  * This routine tells XBraid message sizes by computing an upper bound in bytes
  * for an arbitrary braid_Vector.  This size must be an upper bound for what
  * BufPack and BufUnPack will assume.
@@ -739,6 +750,22 @@ braid_Int
 braid_SetSpatialRefine(braid_Core         core,   /**< braid_Core (_braid_Core) struct*/
                        braid_PtFcnSRefine srefine /**< function pointer to spatial refinement routine */
                        );
+
+/**
+ * Set sync routine with user-defined routine.
+ * Sync gives user access to XBraid and the user's pap at various points
+ * (primarily once per iteration inside FRefine and outside in the main
+ * cycle loop). This function is called once per-processor (instead of for
+ * every state vector on the processor, like access). The use case is to
+ * allow the user to update their app once-per iteration based on information
+ * from XBraid, for example to maintain the space-time grid when doing
+ * time-space adaptivity.
+ * Default is no sync routine.
+ **/
+braid_Int
+braid_SetSync(braid_Core      core, /**< braid_Core (_braid_Core) struct*/
+              braid_PtFcnSync sync  /**< function pointer to sync routine */
+              );
 
 /**
  * Set print level for XBraid.  This controls how much information is 
