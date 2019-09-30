@@ -3238,6 +3238,15 @@ _braid_FRefine(braid_Core   core,
    /* Initialize new hierarchy */
    _braid_CoreElt(core, gupper)  = f_gupper;
    _braid_CoreElt(core, nrefine) += 1;
+
+   braid_Int incr_max_levels = _braid_CoreElt(core, incr_max_levels);
+   if(incr_max_levels == 1)
+   {
+      braid_Int new_max_levels = _braid_CoreElt(core, max_levels);
+      ++new_max_levels;
+      _braid_CoreElt(core, max_levels) = new_max_levels;
+   }
+
    braid_Int newrefine = _braid_CoreElt(core, nrefine);
    // If we have hit max refinement, then limit the max levels
    if(!(newrefine < max_refinements))
@@ -3245,6 +3254,7 @@ _braid_FRefine(braid_Core   core,
       braid_Int maxLevelAfterRefine = _braid_CoreElt(core, max_levels_after_refine);
       braid_SetMaxLevels(core, maxLevelAfterRefine);
    }
+
    /*braid_SetCFactor(core,  0, cfactor);*/ /* RDF HACKED TEST */
    _braid_InitHierarchy(core, f_grid, 1);
    nrefine = _braid_CoreElt(core, nrefine);

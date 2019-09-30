@@ -547,6 +547,13 @@ braid_Int
 braid_SetMaxLevels(braid_Core  core,        /**< braid_Core (_braid_Core) struct*/
                    braid_Int   max_levels   /**< maximum levels to allow */
                    );
+/**
+ * Increase the max number of multigrid levels after performing a refinement.
+ **/
+braid_Int
+braid_SetIncrMaxLevels(braid_Core  core,
+                       braid_Int   incr_max_levels
+                       );
 
 /**
  * Set max number of multigrid levels after refinements have finished. Defaults to
