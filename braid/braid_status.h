@@ -224,17 +224,6 @@ braid_StatusGetDone(braid_Status status,                   /**< structure contai
  * values are returned.
  **/
 braid_Int
-braid_StatusGetTUpperLower(braid_Status status,            /**< structure containing current simulation info */
-                           braid_Real  *t_upper,           /**< output, the upper time value on this processor */
-                           braid_Real  *t_lower,           /**< output, the lower time value on this processor */
-                           braid_Int   *level_ptr          /**< input, level for the desired time values  */
-                           );
-
-/**
- * Returns upper and lower time values on this processor. Two
- * values are returned.
- **/
-braid_Int
 braid_StatusGetTIUL(braid_Status status,                   /**< structure containing current simulation info */
                     braid_Int   *iloc_upper,               /**< output, the upper time point index on this processor */
                     braid_Int   *iloc_lower,               /**< output, the lower time point index on this processor */
@@ -250,7 +239,7 @@ braid_StatusGetTimeValues(braid_Status status,             /**< structure contai
                           braid_Real **tvalues_ptr,        /**< output, time point values for the requested range of indices */
                           braid_Int   *i_upper,            /**< input, upper index of the desired time value range (inclusive) */
                           braid_Int   *i_lower,            /**< input, lower index of the desired time value range (inclusive) */
-                          braid_Int   *level_ptr           /**< input, level for the desired indices */
+                          braid_Int   *level_ptr           /**< input, level for the desired time values */
                           );
 
 /**
@@ -285,7 +274,7 @@ braid_StatusGetWrapperTest(braid_Status status,            /**< structure contai
  **/
 braid_Int
 braid_StatusGetCallingFunction(braid_Status status,        /**< structure containing current simulation info */
-                               braid_Int   *cfunction_ptr  /**< output, function number (0=FInterp, 1=FRestrict, 2=FRefine, 3=FAccess) */
+                               braid_Int   *cfunction_ptr  /**< output, function number (0=FInterp, 1=FRestrict, 2=FRefine, 3=FAccess, 4=FRefine after refinement, 5=Drive Top of Cycle) */
                                );
 
 /**
@@ -491,7 +480,6 @@ ACCESSOR_HEADER_GET1(Access, CallingFunction, Int)
  * SyncStatus Prototypes: They just wrap the corresponding Status accessors
  *--------------------------------------------------------------------------*/
 
-ACCESSOR_HEADER_GET3(Sync, TUpperLower,      Real, Real, Int)
 ACCESSOR_HEADER_GET3(Sync, TIUL,             Int, Int, Int)
 ACCESSOR_HEADER_GET4(Sync, TimeValues,       Real*, Int, Int, Int)
 ACCESSOR_HEADER_GET1(Sync, Iter,             Int)
@@ -531,7 +519,6 @@ ACCESSOR_HEADER_GET1(Step, NLevels,       Int)
 ACCESSOR_HEADER_GET1(Step, NRefine,       Int)
 ACCESSOR_HEADER_GET1(Step, NTPoints,      Int)
 ACCESSOR_HEADER_GET1(Step, Tstop,         Real)
-ACCESSOR_HEADER_GET3(Step, TUpperLower,   Real, Real, Int)
 ACCESSOR_HEADER_GET2(Step, TstartTstop,   Real, Real)
 ACCESSOR_HEADER_GET1(Step, Tol,           Real)
 ACCESSOR_HEADER_GET2(Step, RNorms,        Int,  Real)
