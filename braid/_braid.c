@@ -3434,6 +3434,7 @@ _braid_InitHierarchy(braid_Core    core,
    braid_Int      gupper     = _braid_CoreElt(core, gupper);
    braid_Int     *rfactors   = _braid_CoreElt(core, rfactors);
    braid_Int      nlevels    = _braid_CoreElt(core, nlevels);
+   braid_Int      proc_id    = _braid_CoreElt(core, myid);
    _braid_Grid  **grids      = _braid_CoreElt(core, grids);
 
    /**
@@ -3455,7 +3456,7 @@ _braid_InitHierarchy(braid_Core    core,
 
    braid_Int         level;
    braid_Int         ilower, iupper;
-   braid_Int         clower, cupper, cfactor, ncpoints, nupoints;
+   braid_Int         clower, cupper, cfactor, ncpoints, nupoints, nprocs;
    braid_Real       *ta;
    braid_BaseVector *ua;
    braid_BaseVector *va;
@@ -3464,11 +3465,14 @@ _braid_InitHierarchy(braid_Core    core,
    _braid_Grid      *grid;
    braid_Real       *f_ta;
    braid_Int         i, f_i, f_ilower, clo, chi, gclower, gcupper;
-                    
-   MPI_Request       request1, request2;
+   braid_Int         num_empty_left_proc, num_empty_right_proc, proc;
+   braid_Int         max_empty_right_proc;
+
+   MPI_Request       request1, request2, request3, request4;
    MPI_Status        status;
    braid_Int         left_proc, right_proc;
 
+   MPI_Comm_size(comm, &nprocs);
    grids[0] = fine_grid;
 
    /* Do sequential time marching if min_coarse is already reached */
@@ -3626,12 +3630,40 @@ _braid_InitHierarchy(braid_Core    core,
       ilower = _braid_GridElt(grid, ilower);
       iupper = _braid_GridElt(grid, iupper);
       ta     = _braid_GridElt(grid, ta);
+      _braid_GetProc(core, level, ilower-1, &left_proc);
+      _braid_GetProc(core, level, iupper+1, &right_proc);
 
       if (ilower <= iupper)
       {
-         _braid_GetProc(core, level, ilower-1, &left_proc);
-         _braid_GetProc(core, level, iupper+1, &right_proc);
-         
+         /* Post send to fill time values on empty processors to the left */
+         num_empty_left_proc = proc_id-left_proc-1;
+         if (num_empty_left_proc > 0 && proc_id > 0)
+         {
+            for(proc = proc_id-1; proc > left_proc; proc--)
+            {
+               MPI_Send(&ta[0], sizeof(braid_Real), MPI_BYTE, proc, 1, comm);
+            }
+         }
+
+         /* Post send to fill time values on empty processors to the right */
+         if(right_proc == -1)
+         {
+            max_empty_right_proc = nprocs;
+         }
+         else
+         {
+            max_empty_right_proc = right_proc;
+         }
+         num_empty_right_proc = max_empty_right_proc-proc_id-1;
+         if (num_empty_right_proc > 0 && proc_id < max_empty_right_proc)
+         {
+            for(proc = proc_id+1; proc < max_empty_right_proc; proc++)
+            {
+               MPI_Send(&ta[iupper-ilower], sizeof(braid_Real), MPI_BYTE,
+                        proc, 1, comm);
+            }
+         }
+
          /* Post receive to set ta[-1] on each processor*/
          if (left_proc > -1)
          {
@@ -3678,6 +3710,30 @@ _braid_InitHierarchy(braid_Core    core,
          if ( (right_proc > -1) && ( _braid_CoreElt(core, scoarsen) != NULL ) )
          {
             MPI_Wait(&request2, &status);
+         }
+      }
+      else
+      {
+         /* Send ta information to idle processors for AMR subcycling purposes */
+         ilower -= 1;
+         iupper += 1;
+         if(left_proc > -1)
+         {
+            MPI_Irecv(&ta[-1], sizeof(braid_Real), MPI_BYTE, left_proc, 1, comm, &request3);
+         }
+
+         if(right_proc > -1)
+         {
+            MPI_Irecv(&ta[0], sizeof(braid_Real), MPI_BYTE, right_proc, 1, comm, &request4);
+         }
+         if(left_proc > -1)
+         {
+            MPI_Wait(&request3, &status);
+         }
+
+         if(right_proc > -1)
+         {
+            MPI_Wait(&request4, &status);
          }
       }
    }
