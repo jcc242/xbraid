@@ -491,10 +491,11 @@ public:
 
    void SetMaxLevels(braid_Int max_levels) { braid_SetMaxLevels(core, max_levels); }
 
+
    void SetMaxLevelsAfterRefine(braid_Int max_levels_after_refine)
    { braid_SetMaxLevelsAfterRefine(core, max_levels_after_refine); }
 
-   void SetIncrMaxLevels(braid_Int incr_max_levels) { braid_SetIncrMaxLevels(core, incr_max_levels); }
+   void SetIncrMaxLevels() { braid_SetIncrMaxLevels(core); }
 
    void SetSkip(braid_Int skip) { braid_SetSkip(core, skip); }
 

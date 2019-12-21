@@ -200,7 +200,7 @@ typedef struct _braid_Core_struct
    braid_PtFcnSync        sync;             /**< (optional) user access to app once-per-processor */
    braid_PtFcnTimeGrid    tgrid;            /**< (optional) return time point values on level 0 */
    braid_Int              periodic;         /**< determines if periodic */
-   braid_Int              initiali;         /**< initial grid index (0: default; -1: periodic ) */
+   braid_Int              initiali;         /**< initial condition grid index (0: default; -1: periodic ) */
 
    braid_Int              access_level;     /**< determines how often to call the user's access routine */ 
    braid_Int              print_level;      /**< determines amount of output printed to screen (0,1,2,3) */
@@ -237,6 +237,7 @@ typedef struct _braid_Core_struct
 
    braid_Int              refine;           /**< refine in time (refine = 1) */
    braid_Int             *rfactors;         /**< refinement factors for finest grid (if any) */
+   braid_Real           **rdtvalues;        /**< Array of pointers to arrays of dt values for non-uniform refinement  */
    braid_Int              r_space;          /**< spatial refinment flag */
    braid_Int              rstopped;         /**< refinement stopped at iteration rstopped */
    braid_Int              nrefine;          /**< number of refinements done */
