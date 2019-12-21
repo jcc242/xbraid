@@ -535,6 +535,16 @@ braid_Int
 braid_PrintStats(braid_Core  core           /**< braid_Core (_braid_Core) struct*/
                  );
 
+
+/**
+ * After Drive() finishes, this function can be called to write out the convergence history 
+ * (residuals for each iteration) to a file
+ **/
+braid_Int
+braid_WriteConvHistory(braid_Core core,      /**< braid_Core (_braid_Core) struct */
+                       const char* filename  /**< Output file name */
+                       );
+
 /**
  * Set max number of multigrid levels.
  **/
@@ -542,6 +552,12 @@ braid_Int
 braid_SetMaxLevels(braid_Core  core,        /**< braid_Core (_braid_Core) struct*/
                    braid_Int   max_levels   /**< maximum levels to allow */
                    );
+
+/**
+ * Increase the max number of multigrid levels after performing a refinement.
+ **/
+braid_Int
+braid_SetIncrMaxLevels(braid_Core  core);
 
 /**
  * Set whether to skip all work on the first down cycle (skip = 1).  On by default.

@@ -451,6 +451,7 @@ braid_Drive(braid_Core  core)
    braid_Int            ntime           = _braid_CoreElt(core, ntime);
    braid_Int            skip            = _braid_CoreElt(core, skip);
    braid_Int            max_levels      = _braid_CoreElt(core, max_levels);
+   braid_Int            incr_max_levels = _braid_CoreElt(core, incr_max_levels);
    braid_Int            warm_restart    = _braid_CoreElt(core, warm_restart);
    braid_Int            print_level     = _braid_CoreElt(core, print_level);
    braid_Int            access_level    = _braid_CoreElt(core, access_level);
@@ -568,7 +569,7 @@ braid_Drive(braid_Core  core)
 
    nlevels = _braid_CoreElt(core, nlevels);
    done  = 0;
-   if (max_levels <= 1)
+   if (max_levels <= 1 && incr_max_levels == 0)
    {
       /* Just do sequential time marching */
       done = 1;
@@ -833,6 +834,7 @@ braid_Init(MPI_Comm               comm_world,
    braid_Int              nfmg_Vcyc       = 1;              /* Default num V-cycles at each fmg level is 1 */
    braid_Int              max_iter        = 100;            /* Default max_iter */
    braid_Int              max_levels      = 30;             /* Default max_levels */
+   braid_Int              incr_max_levels = 0;              /* Default increment max levels is false */
    braid_Int              min_coarse      = 2;              /* Default min_coarse */
    braid_Int              seq_soln        = 0;              /* Default initial guess is from user's Init() function */
    braid_Int              print_level     = 2;              /* Default print level */
@@ -890,6 +892,7 @@ braid_Init(MPI_Comm               comm_world,
    _braid_CoreElt(core, print_level)     = print_level;
    _braid_CoreElt(core, io_level)        = io_level;
    _braid_CoreElt(core, max_levels)      = 0; /* Set with SetMaxLevels() below */
+   _braid_CoreElt(core, incr_max_levels) = incr_max_levels;
    _braid_CoreElt(core, min_coarse)      = min_coarse;
    _braid_CoreElt(core, seq_soln)        = seq_soln;
    _braid_CoreElt(core, tol)             = tol;
@@ -909,12 +912,13 @@ braid_Init(MPI_Comm               comm_world,
    _braid_CoreElt(core, nfmg_Vcyc)       = nfmg_Vcyc;
 
    _braid_CoreElt(core, storage)         = -1;            /* only store C-points */
-   _braid_CoreElt(core, useshell)        = 0;
+   _braid_CoreElt(core, useshell)         = 0;
 
    _braid_CoreElt(core, gupper)          = 0; /* Set with SetPeriodic() below */
 
-   _braid_CoreElt(core, refine)          = 0; /* Time refinement off by default */
+   _braid_CoreElt(core, refine)          = 0;  /* Time refinement off by default */
    _braid_CoreElt(core, rfactors)        = NULL;
+   _braid_CoreElt(core, rdtvalues)       = NULL;
    _braid_CoreElt(core, r_space)         = 0;
    _braid_CoreElt(core, rstopped)        = -1;
    _braid_CoreElt(core, nrefine)         = 0;
@@ -1036,6 +1040,7 @@ braid_Destroy(braid_Core  core)
       _braid_TFree(_braid_CoreElt(core, cfactors));
       _braid_TFree(_braid_CoreElt(core, rfactors));
       _braid_TFree(_braid_CoreElt(core, tnorm_a));
+      _braid_TFree(_braid_CoreElt(core, rdtvalues));
 
       /* Destroy the optimization structure */
       _braid_CoreElt(core, record) = 0;
@@ -1094,6 +1099,7 @@ braid_PrintStats(braid_Core  core)
    braid_Real    globaltime    = _braid_CoreElt(core, globaltime);
    braid_PtFcnResidual fullres = _braid_CoreElt(core, full_rnorm_res);
    _braid_Grid **grids         = _braid_CoreElt(core, grids);
+   braid_Int     periodic      = _braid_CoreElt(core, periodic);
    braid_Int     adjoint       = _braid_CoreElt(core, adjoint);
    braid_Optim   optim         = _braid_CoreElt(core, optim);
 
@@ -1181,6 +1187,7 @@ braid_PrintStats(braid_Core  core)
       _braid_printf("  min coarse            = %d\n", min_coarse);
       _braid_printf("  number of levels      = %d\n", nlevels);
       _braid_printf("  skip down cycle       = %d\n", skip);
+      _braid_printf("  periodic              = %d\n", periodic);
       _braid_printf("  number of refinements = %d\n", nrefine);
       _braid_printf("\n");
       _braid_printf("  level   time-pts   cfactor   nrelax\n");
@@ -1199,6 +1206,63 @@ braid_PrintStats(braid_Core  core)
    }
 
    return _braid_error_flag;
+}
+
+/*--------------------------------------------------------------------------
+ *--------------------------------------------------------------------------*/
+
+braid_Int
+braid_WriteConvHistory(braid_Core core,    
+                       const char* filename)
+{
+   braid_Int     myid          = _braid_CoreElt(core, myid_world);
+   braid_Real    tstart        = _braid_CoreElt(core, tstart);
+   braid_Real    tstop         = _braid_CoreElt(core, tstop);
+   braid_Int     gupper        = _braid_CoreElt(core, gupper);
+   braid_Int     nlevels       = _braid_CoreElt(core, nlevels);
+   _braid_Grid **grids         = _braid_CoreElt(core, grids);
+
+   FILE* braidlog;
+   braid_Int niter, iter;
+   int cfac, gupp, level;
+   double* resnorms;
+
+   if (myid == 0) {
+
+     /* Write some general information file */
+     braidlog = fopen(filename, "w");
+     _braid_ParFprintfFlush(braidlog, myid, "# start time       = %e\n", tstart);
+     _braid_ParFprintfFlush(braidlog, myid, "# stop time        = %e\n", tstop);
+     _braid_ParFprintfFlush(braidlog, myid, "# time steps       = %d\n", (int) gupper);
+     _braid_ParFprintfFlush(braidlog, myid, "# number of levels = %d\n", nlevels);
+     _braid_ParFprintfFlush(braidlog, myid, "#  level   time-pts   cfactor\n");
+     for (level = 0; level < nlevels-1; level++)
+     {
+       cfac = _braid_GridElt(grids[level], cfactor);
+       gupp = _braid_GridElt(grids[level], gupper);
+       _braid_ParFprintfFlush(braidlog, myid, "#  % 5d  % 8d  % 7d\n", level, gupp , cfac);
+     }
+     /* Print out coarsest level information */
+     gupp = _braid_GridElt(grids[level], gupper);
+     _braid_ParFprintfFlush(braidlog, myid, "#  % 5d  % 8d  \n\n", level, gupp);
+
+
+     /* Get and write residuals for all iterations */
+     braid_GetNumIter(core, &niter);
+     resnorms = _braid_CTAlloc(double, niter);
+     braid_GetRNorms(core, &niter, resnorms);
+     _braid_ParFprintfFlush(braidlog, myid, "# iter   residual norm\n");
+     for (iter=0; iter<niter; iter++)
+     {
+       _braid_ParFprintfFlush(braidlog, myid, "%03d      %1.14e\n", iter, resnorms[iter]);
+     }
+
+     /* Cleanup */
+     fclose(braidlog);
+     _braid_TFree(resnorms);
+  }
+  
+  return _braid_error_flag;
 }
 
 /*--------------------------------------------------------------------------
@@ -1228,6 +1292,17 @@ braid_SetMaxLevels(braid_Core  core,
    _braid_CoreElt(core, nrels)    = nrels;
    _braid_CoreElt(core, cfactors) = cfactors;
    _braid_CoreElt(core, grids)    = grids;
+
+   return _braid_error_flag;
+}
+
+/*--------------------------------------------------------------------------
+ *--------------------------------------------------------------------------*/
+
+braid_Int
+braid_SetIncrMaxLevels(braid_Core  core)
+{
+   _braid_CoreElt(core, incr_max_levels) = 1;
 
    return _braid_error_flag;
 }
@@ -1602,13 +1677,20 @@ braid_Int
 braid_SetPeriodic(braid_Core core,
                   braid_Int  periodic)
 {
-   _braid_CoreElt(core, periodic)   = periodic;
+   _braid_CoreElt(core, periodic)   = 0;
    _braid_CoreElt(core, gupper)     = _braid_CoreElt(core, ntime);
    _braid_CoreElt(core, initiali) = 0;
-   if (periodic)
+
+   /* Do not set periodic, if we are doing sequential integration */
+   if ( periodic && (_braid_CoreElt(core, seq_soln) == 0) )
    {
+      _braid_CoreElt(core, periodic)   = 1;
       _braid_CoreElt(core, gupper)     = _braid_CoreElt(core, ntime) - 1;
       _braid_CoreElt(core, initiali) = -1;
+   }
+   else if (periodic == 1)
+   {
+      _braid_printf("  Braid: Periodic option is not compatible with SeqSoln option, disabling\n");
    }
 
    return _braid_error_flag;
@@ -1808,8 +1890,18 @@ braid_SetSeqSoln(braid_Core  core,
    /* Skip needs to be 0 if we do a sequential integration first */
    _braid_CoreElt(core, seq_soln) = seq_soln;
    if (seq_soln == 1)
-      _braid_CoreElt(core, skip) = 0;
-
+   {
+      if(_braid_CoreElt(core, skip) == 1)
+      {
+         _braid_CoreElt(core, skip) = 0;
+         _braid_printf("  Braid: SetSeqSoln requires skip turned off, turning off now\n");
+      }
+      if(_braid_CoreElt(core, periodic) == 1)
+      {
+         _braid_CoreElt(core, periodic) = 0;
+         _braid_printf("  Braid: SetSeqSoln requires periodic turned off, turning off now\n");
+      }
+   }
    return _braid_error_flag;
 }
 
@@ -1863,7 +1955,7 @@ braid_SetTStopObjective(braid_Core core,
 
 braid_Int
 braid_SetPostprocessObjective(braid_Core                      core,
-                              braid_PtFcnPostprocessObjective post_fcn)
+                              braid_PtFcnPostprocessObjective post_fcn )
 {
    if ( !(_braid_CoreElt(core, adjoint)) )
    {
@@ -1877,7 +1969,7 @@ braid_SetPostprocessObjective(braid_Core                      core,
 
 braid_Int
 braid_SetPostprocessObjective_diff(braid_Core                           core,
-                                   braid_PtFcnPostprocessObjective_diff post_fcn_diff)
+                                   braid_PtFcnPostprocessObjective_diff post_fcn_diff )
 {
    if ( !(_braid_CoreElt(core, adjoint)) )
    {
