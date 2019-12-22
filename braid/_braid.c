@@ -3642,6 +3642,7 @@ _braid_InitHierarchy(braid_Core    core,
    braid_Int      nlevels    = _braid_CoreElt(core, nlevels);
    braid_Int      proc_id    = _braid_CoreElt(core, myid);
    _braid_Grid  **grids      = _braid_CoreElt(core, grids);
+   braid_Int      periodic   = _braid_CoreElt(core, periodic);
 
    /**
     * These are some common index names used to refer to intervals and
@@ -3872,6 +3873,28 @@ _braid_InitHierarchy(braid_Core    core,
             {
                MPI_Send(&ta[iupper-ilower], sizeof(braid_Real), MPI_BYTE,
                         proc, 1, comm);
+            }
+         }
+
+         /* Need special consideration for empty processors in periodic */
+         if (periodic)
+         {
+
+            if (left_proc > proc_id)
+            {
+               for(proc = left_proc+1; proc < nprocs; proc++)
+               {
+                  MPI_Send(&ta[0], sizeof(braid_Real), MPI_BYTE, proc, 1, comm);
+               }
+            }
+
+            if (right_proc < proc_id)
+            {
+               for(proc = proc_id+1; proc < nprocs; proc++)
+               {
+                  MPI_Send(&ta[iupper-ilower], sizeof(braid_Real), MPI_BYTE,
+                           proc, 1, comm);
+               }
             }
          }
 
